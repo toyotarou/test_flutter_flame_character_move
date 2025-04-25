@@ -25,22 +25,10 @@ class GameApp extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _ControlButton(
-                      icon: Icons.arrow_back,
-                      onTap: () => game.toggleLeft(),
-                    ),
-                    _ControlButton(
-                      icon: Icons.arrow_upward,
-                      onTap: () => game.player.jump(),
-                    ),
-                    _ControlButton(
-                      icon: Icons.stop,
-                      onTap: () => game.stopMove(),
-                    ),
-                    _ControlButton(
-                      icon: Icons.arrow_forward,
-                      onTap: () => game.toggleRight(),
-                    ),
+                    _ControlButton(icon: Icons.arrow_back, onTap: () => game.toggleLeft()),
+                    _ControlButton(icon: Icons.arrow_upward, onTap: () => game.player.jump()),
+                    _ControlButton(icon: Icons.stop, onTap: () => game.stopMove()),
+                    _ControlButton(icon: Icons.arrow_forward, onTap: () => game.toggleRight()),
                   ],
                 ),
               ),
@@ -54,8 +42,10 @@ class GameApp extends StatelessWidget {
 
 class _ControlButton extends StatelessWidget {
   const _ControlButton({required this.icon, required this.onTap});
+
   final IconData icon;
   final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -63,10 +53,7 @@ class _ControlButton extends StatelessWidget {
       child: Container(
         width: 64,
         height: 64,
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
         child: Icon(icon, color: Colors.white),
       ),
     );
@@ -76,20 +63,21 @@ class _ControlButton extends StatelessWidget {
 // ───────────────────────── ゲーム本体 ─────────────────────────
 class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
   late final Player player;
+
   double get groundY => size.y - 48 - 64;
 
   bool _leftActive = false;
   bool _rightActive = false;
 
   void toggleLeft() {
-    _leftActive = !_leftActive;
-    if (_leftActive) _rightActive = false;
+    _leftActive = true;
+    _rightActive = false;
     _updateHorizontalInput();
   }
 
   void toggleRight() {
-    _rightActive = !_rightActive;
-    if (_rightActive) _leftActive = false;
+    _rightActive = true;
+    _leftActive = false;
     _updateHorizontalInput();
   }
 
@@ -100,40 +88,48 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
   }
 
   void _updateHorizontalInput() {
-    player.horizontalInput = _leftActive
-        ? -1
-        : _rightActive
-        ? 1
-        : 0;
-    player.touchControlActive = _leftActive || _rightActive;
+    player.horizontalInput =
+        _leftActive
+            ? -1
+            : _rightActive
+            ? 1
+            : 0;
   }
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    add(RectangleComponent(
-      size: size,
-      paint: Paint()..color = const Color(0xFFEFEFEF),
-    ));
 
+    // 背景（全体） ← 最初に追加
+    add(RectangleComponent(size: size, paint: Paint()..color = const Color(0xFFEFEFEF)));
+
+    // キャラの移動可能範囲帯 ← あとから追加することで上に重ねる
+    const margin = 24.0;
+    final band = RectangleComponent(
+      position: Vector2(margin, 0),
+      size: Vector2(size.x - margin * 2, size.y),
+      // ignore: deprecated_member_use
+      paint: Paint()..color = Colors.lightBlueAccent.withOpacity(0.1),
+    );
+    add(band);
+
+    // プレイヤー追加
     player = Player(groundY: groundY);
     await add(player);
   }
 
   @override
-  KeyEventResult onKeyEvent(KeyEvent e, Set<LogicalKeyboardKey> keys) {
+  // ignore: must_call_super
+  KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     player.horizontalInput =
-    keys.contains(LogicalKeyboardKey.arrowLeft) || keys.contains(LogicalKeyboardKey.keyA)
-        ? -1
-        : keys.contains(LogicalKeyboardKey.arrowRight) || keys.contains(LogicalKeyboardKey.keyD)
-        ? 1
-        : 0;
+        keysPressed.contains(LogicalKeyboardKey.arrowLeft) || keysPressed.contains(LogicalKeyboardKey.keyA)
+            ? -1
+            : keysPressed.contains(LogicalKeyboardKey.arrowRight) || keysPressed.contains(LogicalKeyboardKey.keyD)
+            ? 1
+            : 0;
 
-    player.touchControlActive = false;
-
-    if (e is KeyDownEvent &&
-        (e.logicalKey == LogicalKeyboardKey.space ||
-            e.logicalKey == LogicalKeyboardKey.arrowUp)) {
+    if (event is KeyDownEvent &&
+        (event.logicalKey == LogicalKeyboardKey.space || event.logicalKey == LogicalKeyboardKey.arrowUp)) {
       player.jump();
     }
     return KeyEventResult.handled;
@@ -143,8 +139,8 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
 // ───────────────────────── プレイヤー ─────────────────────────
 enum PState { idle, run }
 
-class Player extends SpriteAnimationGroupComponent<PState>
-    with HasGameRef<SideScrollerDemo> {
+// ignore: deprecated_member_use
+class Player extends SpriteAnimationGroupComponent<PState> with HasGameRef<SideScrollerDemo> {
   static const double runSpeed = 40;
   static const double jumpVel = -450;
   static const double gravity = 900;
@@ -154,14 +150,12 @@ class Player extends SpriteAnimationGroupComponent<PState>
   static const double scaleFactor = 0.1;
 
   final double groundY;
-  int horizontalInput = 1; // 初期状態で右移動
+  int horizontalInput = 1; // 初期状態：右移動
   bool facingLeft = false;
-  bool touchControlActive = false;
   Vector2 vel = Vector2.zero();
   late final Vector2 frameSize;
 
-  Player({required this.groundY})
-      : super(anchor: Anchor.center, current: PState.idle);
+  Player({required this.groundY}) : super(anchor: Anchor.center, current: PState.idle);
 
   @override
   Future<void> onLoad() async {
@@ -184,15 +178,11 @@ class Player extends SpriteAnimationGroupComponent<PState>
     }
 
     final runAnim = SpriteAnimation(runFrames);
-    final idleAnim = SpriteAnimation.spriteList(
-      [Sprite(img, srcPosition: Vector2.zero(), srcSize: frameSize)],
-      stepTime: 1,
-    );
+    final idleAnim = SpriteAnimation.spriteList([
+      Sprite(img, srcPosition: Vector2.zero(), srcSize: frameSize),
+    ], stepTime: 1);
 
-    animations = {
-      PState.idle: idleAnim,
-      PState.run: runAnim,
-    };
+    animations = {PState.idle: idleAnim, PState.run: runAnim};
 
     position = Vector2(120, groundY - size.y / 2);
   }
@@ -209,15 +199,13 @@ class Player extends SpriteAnimationGroupComponent<PState>
 
     final leftLimit = size.x / 2;
     final rightLimit = gameRef.size.x - size.x / 2;
-    final leftTurnAround = leftLimit + 24;   // ← 少し内側
-    final rightTurnAround = rightLimit - 24; // ← 少し内側
+    final leftTurnAround = leftLimit + 24;
+    final rightTurnAround = rightLimit - 24;
 
-    if (!touchControlActive) {
-      if (position.x <= leftTurnAround && horizontalInput < 0) {
-        horizontalInput = 1;
-      } else if (position.x >= rightTurnAround && horizontalInput > 0) {
-        horizontalInput = -1;
-      }
+    if (position.x <= leftTurnAround && horizontalInput < 0) {
+      horizontalInput = 1;
+    } else if (position.x >= rightTurnAround && horizontalInput > 0) {
+      horizontalInput = -1;
     }
 
     vel
