@@ -60,61 +60,76 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
-// ───────────────────────── ゲーム本体 ─────────────────────────
+class Block extends RectangleComponent {
+  Block(Vector2 pos, double width)
+    : super(position: pos, size: Vector2(width, 20), paint: Paint()..color = Colors.brown.shade300);
+}
+
 class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
   late final Player player;
 
   double get groundY => size.y - 48 - 64;
+  final List<Block> blockList = [];
 
-  bool _leftActive = false;
-  bool _rightActive = false;
+  void toggleLeft() => player.horizontalInput = -1;
 
-  void toggleLeft() {
-    _leftActive = true;
-    _rightActive = false;
-    _updateHorizontalInput();
-  }
+  void toggleRight() => player.horizontalInput = 1;
 
-  void toggleRight() {
-    _rightActive = true;
-    _leftActive = false;
-    _updateHorizontalInput();
-  }
-
-  void stopMove() {
-    _leftActive = false;
-    _rightActive = false;
-    _updateHorizontalInput();
-  }
-
-  void _updateHorizontalInput() {
-    player.horizontalInput =
-        _leftActive
-            ? -1
-            : _rightActive
-            ? 1
-            : 0;
-  }
+  void stopMove() => player.horizontalInput = 0;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // 背景（全体） ← 最初に追加
     add(RectangleComponent(size: size, paint: Paint()..color = const Color(0xFFEFEFEF)));
 
-    // キャラの移動可能範囲帯 ← あとから追加することで上に重ねる
-    const margin = 24.0;
-    final band = RectangleComponent(
-      position: Vector2(margin, 0),
-      size: Vector2(size.x - margin * 2, size.y),
-      // ignore: deprecated_member_use
-      paint: Paint()..color = Colors.lightBlueAccent.withOpacity(0.1),
+    add(
+      RectangleComponent(
+        position: Vector2(24, 0),
+        size: Vector2(size.x - 48, size.y),
+        // ignore: deprecated_member_use
+        paint: Paint()..color = Colors.lightBlueAccent.withOpacity(0.1),
+      ),
     );
-    add(band);
 
-    // プレイヤー追加
-    player = Player(groundY: groundY);
+    final yOffsets = [
+      groundY - 80,
+      groundY - 140,
+      groundY - 200,
+      groundY - 260,
+      groundY - 320,
+      groundY - 380,
+      groundY - 440,
+      groundY - 500,
+    ];
+
+    const int divisions = 10;
+    final double blockWidth = size.x / divisions;
+
+    final List<List<int>> pattern = [
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
+    ];
+
+    for (int row = 0; row < yOffsets.length; row++) {
+      final y = yOffsets[row];
+      for (int col = 0; col < divisions; col++) {
+        if (pattern[row][col] == 1) {
+          final x = col * blockWidth;
+          final block = Block(Vector2(x, y), blockWidth);
+          blockList.add(block);
+          await add(block);
+        }
+      }
+    }
+
+    player = Player(groundY: groundY, blockList: blockList);
     await add(player);
   }
 
@@ -132,11 +147,11 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
         (event.logicalKey == LogicalKeyboardKey.space || event.logicalKey == LogicalKeyboardKey.arrowUp)) {
       player.jump();
     }
+
     return KeyEventResult.handled;
   }
 }
 
-// ───────────────────────── プレイヤー ─────────────────────────
 enum PState { idle, run }
 
 // ignore: deprecated_member_use
@@ -144,28 +159,42 @@ class Player extends SpriteAnimationGroupComponent<PState> with HasGameRef<SideS
   static const double runSpeed = 40;
   static const double jumpVel = -450;
   static const double gravity = 900;
-
   static const int cols = 2;
   static const int rows = 2;
   static const double scaleFactor = 0.1;
 
   final double groundY;
-  int horizontalInput = 1; // 初期状態：右移動
+  final List<Block> blockList;
+  int horizontalInput = 1;
   bool facingLeft = false;
   Vector2 vel = Vector2.zero();
   late final Vector2 frameSize;
 
-  Player({required this.groundY}) : super(anchor: Anchor.center, current: PState.idle);
+  Player({required this.groundY, required this.blockList}) : super(anchor: Anchor.center, current: PState.idle);
+
+  void jump() {
+    final bottom = position.y + size.y / 2;
+    if (bottom >= groundY - 0.1) {
+      vel.y = jumpVel;
+      return;
+    }
+    for (final block in blockList) {
+      final bTop = block.position.y;
+      final bLeft = block.position.x;
+      final bRight = block.position.x + block.size.x;
+      if (bottom >= bTop - 1 && bottom <= bTop + 6 && position.x >= bLeft && position.x <= bRight) {
+        vel.y = jumpVel;
+        return;
+      }
+    }
+  }
 
   @override
   Future<void> onLoad() async {
-    await super.onLoad();
-
     final img = await game.images.load('player_sheet.png');
     final frameW = img.width / cols;
     final frameH = img.height / rows;
     frameSize = Vector2(frameW.toDouble(), frameH.toDouble());
-
     size = frameSize * scaleFactor;
     scale = Vector2.all(1.0);
 
@@ -183,15 +212,8 @@ class Player extends SpriteAnimationGroupComponent<PState> with HasGameRef<SideS
     ], stepTime: 1);
 
     animations = {PState.idle: idleAnim, PState.run: runAnim};
-
-    position = Vector2(120, groundY - size.y / 2);
+    position = Vector2(60, groundY - size.y / 2);
   }
-
-  void jump() {
-    if (isOnGround) vel.y = jumpVel;
-  }
-
-  bool get isOnGround => position.y >= groundY - size.y / 2;
 
   @override
   void update(double dt) {
@@ -213,9 +235,27 @@ class Player extends SpriteAnimationGroupComponent<PState> with HasGameRef<SideS
       ..y += gravity * dt;
     position += vel * dt;
 
-    if (isOnGround) {
-      position.y = groundY - size.y / 2;
+    double? closestBlockTop;
+
+    for (final block in blockList) {
+      final bTop = block.position.y;
+      final bLeft = block.position.x;
+      final bRight = block.position.x + block.size.x;
+      final bottom = position.y + size.y / 2;
+
+      if (bottom >= bTop - 1 && bottom <= bTop + 6 && position.x >= bLeft && position.x <= bRight) {
+        if (closestBlockTop == null || bTop < closestBlockTop) {
+          closestBlockTop = bTop;
+        }
+      }
+    }
+
+    if (closestBlockTop != null) {
       vel.y = 0;
+      position.y = closestBlockTop - size.y / 2;
+    } else if (position.y + size.y / 2 >= groundY) {
+      vel.y = 0;
+      position.y = groundY - size.y / 2;
     }
 
     if (vel.x < 0 && !facingLeft) {
