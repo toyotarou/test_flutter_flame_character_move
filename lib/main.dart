@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame/input.dart';
@@ -29,6 +30,7 @@ class GameApp extends StatelessWidget {
                     _ControlButton(icon: Icons.arrow_upward, onTap: () => game.player.jump()),
                     _ControlButton(icon: Icons.stop, onTap: () => game.stopMove()),
                     _ControlButton(icon: Icons.arrow_forward, onTap: () => game.toggleRight()),
+                    _ControlButton(icon: Icons.refresh, onTap: () => game.generateRandomBlocks()),
                   ],
                 ),
               ),
@@ -70,12 +72,35 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
 
   double get groundY => size.y - 48 - 64;
   final List<Block> blockList = [];
+  final List<double> yOffsets = [];
+  final int divisions = 10;
 
   void toggleLeft() => player.horizontalInput = -1;
 
   void toggleRight() => player.horizontalInput = 1;
 
   void stopMove() => player.horizontalInput = 0;
+
+  void generateRandomBlocks() async {
+    for (final block in blockList) {
+      block.removeFromParent();
+    }
+    blockList.clear();
+
+    final double blockWidth = size.x / divisions;
+    final Random rand = Random();
+
+    for (final y in yOffsets) {
+      for (int col = 0; col < divisions; col++) {
+        if (rand.nextBool()) {
+          final x = col * blockWidth;
+          final block = Block(Vector2(x, y), blockWidth);
+          blockList.add(block);
+          await add(block);
+        }
+      }
+    }
+  }
 
   @override
   Future<void> onLoad() async {
@@ -92,7 +117,7 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
       ),
     );
 
-    final yOffsets = [
+    yOffsets.addAll([
       groundY - 80,
       groundY - 140,
       groundY - 200,
@@ -101,33 +126,9 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
       groundY - 380,
       groundY - 440,
       groundY - 500,
-    ];
+    ]);
 
-    const int divisions = 10;
-    final double blockWidth = size.x / divisions;
-
-    final List<List<int>> pattern = [
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-      [1, 1, 0, 0, 1, 1, 1, 0, 0, 0],
-    ];
-
-    for (int row = 0; row < yOffsets.length; row++) {
-      final y = yOffsets[row];
-      for (int col = 0; col < divisions; col++) {
-        if (pattern[row][col] == 1) {
-          final x = col * blockWidth;
-          final block = Block(Vector2(x, y), blockWidth);
-          blockList.add(block);
-          await add(block);
-        }
-      }
-    }
+    generateRandomBlocks();
 
     player = Player(groundY: groundY, blockList: blockList);
     await add(player);
@@ -143,8 +144,7 @@ class SideScrollerDemo extends FlameGame with HasKeyboardHandlerComponents {
             ? 1
             : 0;
 
-    if (event is KeyDownEvent &&
-        (event.logicalKey == LogicalKeyboardKey.space || event.logicalKey == LogicalKeyboardKey.arrowUp)) {
+    if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.space || event.logicalKey == LogicalKeyboardKey.arrowUp)) {
       player.jump();
     }
 
